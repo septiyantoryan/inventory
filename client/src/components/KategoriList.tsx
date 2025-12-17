@@ -1,0 +1,305 @@
+import { useState, useEffect } from 'react';
+import { kategoriApi } from '@/lib/api';
+import type { Kategori } from '@/types/api';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Plus, Pencil, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { KategoriFormDialog } from './KategoriFormDialog';
+
+export function KategoriList() {
+    const [kategoris, setKategoris] = useState<Kategori[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [selectedKategori, setSelectedKategori] = useState<Kategori | null>(null);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const loadKategoris = async () => {
+        try {
+            setLoading(true);
+            const data = await kategoriApi.getAll();
+            setKategoris(data);
+        } catch (error) {
+            console.error('Failed to load kategoris:', error);
+            alert('Gagal memuat data kategori');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadKategoris();
+    }, []);
+
+    // Reset to page 1 when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search]);
+
+    const handleAdd = () => {
+        setSelectedKategori(null);
+        setDialogOpen(true);
+    };
+
+    const handleEdit = (kategori: Kategori) => {
+        setSelectedKategori(kategori);
+        setDialogOpen(true);
+    };
+
+    const handleDelete = async (kategori: Kategori) => {
+        if (!confirm(`Hapus kategori "${kategori.nama}"?\n\nPeringatan: Kategori yang digunakan di barang tidak bisa dihapus.`)) {
+            return;
+        }
+
+        try {
+            await kategoriApi.delete(kategori.id);
+            alert('Kategori berhasil dihapus');
+            loadKategoris();
+        } catch (error) {
+            console.error('Failed to delete:', error);
+            alert('Gagal menghapus kategori. Mungkin kategori masih digunakan di barang.');
+        }
+    };
+
+    const handleCloseDialog = (refresh: boolean) => {
+        setDialogOpen(false);
+        setSelectedKategori(null);
+        if (refresh) {
+            loadKategoris();
+        }
+    };
+
+    const filteredKategoris = kategoris.filter((kategori) =>
+        kategori.nama.toLowerCase().includes(search.toLowerCase()) ||
+        (kategori.deskripsi && kategori.deskripsi.toLowerCase().includes(search.toLowerCase()))
+    );
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredKategoris.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentKategoris = filteredKategoris.slice(startIndex, endIndex);
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (value: string) => {
+        setItemsPerPage(Number(value));
+        setCurrentPage(1);
+    };
+
+    return (
+        <div>
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-2xl">Kelola Kategori</CardTitle>
+                            <CardDescription>
+                                Manajemen kategori produk (Makanan, Minuman, Elektronik, dll)
+                            </CardDescription>
+                        </div>
+                        <Button onClick={handleAdd}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Tambah Kategori
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Search */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Cari kategori..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    {loading ? (
+                        <div className="text-center py-8">Loading...</div>
+                    ) : filteredKategoris.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                            {search ? 'Tidak ada kategori yang sesuai pencarian' : 'Belum ada kategori'}
+                        </div>
+                    ) : (
+                        <div className="border rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[200px]">Nama</TableHead>
+                                        <TableHead>Deskripsi</TableHead>
+                                        <TableHead className="w-[150px]">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {currentKategoris.map((kategori) => (
+                                        <TableRow key={kategori.id}>
+                                            <TableCell className="font-medium">
+                                                {kategori.nama}
+                                            </TableCell>
+                                            <TableCell className="text-gray-600">
+                                                {kategori.deskripsi || '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleEdit(kategori)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(kategori)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+
+                    {/* Pagination Controls */}
+                    {!loading && filteredKategoris.length > 0 && (
+                        <div className="mt-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Tampilkan</span>
+                                <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                                    <SelectTrigger className="w-[70px]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="5">5</SelectItem>
+                                        <SelectItem value="10">10</SelectItem>
+                                        <SelectItem value="25">25</SelectItem>
+                                        <SelectItem value="50">50</SelectItem>
+                                        <SelectItem value="100">100</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <span className="text-sm text-gray-600">
+                                    dari {filteredKategoris.length} kategori
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">
+                                    Halaman {currentPage} dari {totalPages || 1}
+                                </span>
+                                <div className="flex gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(1)}
+                                        disabled={currentPage === 1}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        <ChevronLeft className="h-4 w-4 -ml-2" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+
+                                    {/* Page numbers */}
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                        .filter((page) => {
+                                            return (
+                                                page === 1 ||
+                                                page === totalPages ||
+                                                (page >= currentPage - 1 && page <= currentPage + 1)
+                                            );
+                                        })
+                                        .map((page, index, array) => {
+                                            const prevPage = array[index - 1];
+                                            const showEllipsis = prevPage && page - prevPage > 1;
+
+                                            return (
+                                                <div key={page} className="flex gap-1">
+                                                    {showEllipsis && (
+                                                        <span className="px-2 py-1 text-sm text-gray-400">...</span>
+                                                    )}
+                                                    <Button
+                                                        variant={currentPage === page ? 'default' : 'outline'}
+                                                        size="sm"
+                                                        onClick={() => handlePageChange(page)}
+                                                        className="min-w-[36px]"
+                                                    >
+                                                        {page}
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages || totalPages === 0}
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handlePageChange(totalPages)}
+                                        disabled={currentPage === totalPages || totalPages === 0}
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                        <ChevronRight className="h-4 w-4 -ml-2" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Summary */}
+                    <div className="mt-4 text-sm text-gray-600">
+                        Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredKategoris.length)} dari {filteredKategoris.length} kategori
+                        {filteredKategoris.length < kategoris.length && ` (difilter dari ${kategoris.length} total)`}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <KategoriFormDialog
+                open={dialogOpen}
+                kategori={selectedKategori}
+                onClose={handleCloseDialog}
+            />
+        </div>
+    );
+}

@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Model Kategori Barang
+model Kategori {
+  id        Int      @id @default(autoincrement())
+  nama      String   @db.VarChar(100)
+  deskripsi String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  barang Barang[]
+
+  @@map("kategori")
+}
+
+// Model Satuan (Unit) - untuk hierarki satuan
+model Satuan {
+  id        Int      @id @default(autoincrement())
+  nama      String   @db.VarChar(50) // pcs, box, dus, pack, renteng, lusin, dll
+  deskripsi String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  barang       Barang[]
+  konversiDari KonversiSatuan[] @relation("SatuanDari")
+  konversiKe   KonversiSatuan[] @relation("SatuanKe")
+
+  @@unique([nama])
+  @@map("satuan")
+}
+
+// Model Konversi Satuan - untuk konversi antar satuan
+// Contoh: 1 dus = 8 box, 1 box = 10 pcs
+model KonversiSatuan {
+  id             Int      @id @default(autoincrement())
+  barangId       Int
+  satuanDariId   Int // satuan yang lebih besar (dus, pack)
+  satuanKeId     Int // satuan yang lebih kecil (box, renteng, pcs)
+  jumlahKonversi Int      @default(1) // berapa satuan kecil dalam 1 satuan besar
+  hargaBeli      Int? // harga beli untuk satuan ini
+  hargaJual      Int? // harga jual untuk satuan ini
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  barang     Barang @relation(fields: [barangId], references: [id], onDelete: Cascade)
+  satuanDari Satuan @relation("SatuanDari", fields: [satuanDariId], references: [id])
+  satuanKe   Satuan @relation("SatuanKe", fields: [satuanKeId], references: [id])
+
+  @@index([barangId])
+  @@index([satuanDariId])
+  @@index([satuanKeId])
+  @@map("konversi_satuan")
+}
+
+// Model Barang (Item)
+model Barang {
+  id          Int      @id @default(autoincrement())
+  kode        String   @unique @db.VarChar(100) // SKU / Kode Barang
+  nama        String   @db.VarChar(255)
+  deskripsi   String?  @db.Text
+  kategoriId  Int
+  satuanId    Int // satuan terkecil (biasanya pcs)
+  hargaBeli   Int      @default(0)
+  hargaJual   Int      @default(0)
+  minimumStok Int      @default(0)
+  stok        Int      @default(0) // stok dalam satuan dasar
+  lokasi      String?  @db.VarChar(100) // lokasi penyimpanan
+  barcode     String?  @db.VarChar(100)
+  gambar      String?  @db.VarChar(255) // URL gambar
+  aktif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kategori       Kategori         @relation(fields: [kategoriId], references: [id])
+  satuan         Satuan           @relation(fields: [satuanId], references: [id])
+  konversiSatuan KonversiSatuan[]
+  riwayatStok    RiwayatStok[]
+
+  @@index([kode])
+  @@index([nama])
+  @@index([kategoriId])
+  @@index([satuanId])
+  @@index([barcode])
+  @@map("barang")
+}
+
+// Model Riwayat Stok - untuk tracking pergerakan stok
+model RiwayatStok {
+  id             Int      @id @default(autoincrement())
+  barangId       Int
+  jenisTransaksi String   @db.VarChar(50) // masuk, keluar, penyesuaian, retur
+  jumlah         Int // dalam satuan dasar
+  stokSebelum    Int
+  stokSesudah    Int
+  keterangan     String?  @db.Text
+  referensi      String?  @db.VarChar(100) // nomor PO, SO, dll
+  tanggal        DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  barang Barang @relation(fields: [barangId], references: [id], onDelete: Cascade)
+
+  @@index([barangId])
+  @@index([jenisTransaksi])
+  @@index([tanggal])
+  @@map("riwayat_stok")
+}

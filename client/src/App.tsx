@@ -1,60 +1,94 @@
-import { useState } from 'react'
-import beaver from './assets/beaver.svg'
-import { ApiResponse } from 'shared'
-import { Button } from './components/ui/button'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { BarangList } from './components/BarangList';
+import { BarangForm } from './components/BarangForm';
+import { SatuanList } from './components/SatuanList';
+import { KategoriList } from './components/KategoriList';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { Toaster } from './components/ui/sonner';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
+type Tab = 'barang' | 'satuan' | 'kategori';
 
-function App() {
-  const [data, setData] = useState<ApiResponse | undefined>()
+function Layout() {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  async function sendRequest() {
-    try {
-      const req = await fetch(`${SERVER_URL}/hello`)
-      const res: ApiResponse = await req.json()
-      setData(res)
-    } catch (error) {
-      console.log(error)
-    }
-  }
+  // Determine active tab from current path
+  const getActiveTab = (): Tab => {
+    if (location.pathname.startsWith('/barang')) return 'barang';
+    if (location.pathname.startsWith('/satuan')) return 'satuan';
+    if (location.pathname.startsWith('/kategori')) return 'kategori';
+    return 'barang';
+  };
+
+  const handleTabChange = (tab: string) => {
+    navigate(`/${tab}`);
+  };
 
   return (
-    <div className="max-w-xl mx-auto flex flex-col gap-6 items-center justify-center min-h-screen">
-      <a href="https://github.com/stevedylandev/bhvr" target="_blank">
-        <img
-          src={beaver}
-          className="w-16 h-16 cursor-pointer"
-          alt="beaver logo"
-        />
-      </a>
-      <h1 className="text-5xl font-black">bhvr</h1>
-      <h2 className="text-2xl font-bold">Bun + Hono + Vite + React</h2>
-      <p>A typesafe fullstack monorepo</p>
-      <div className='flex items-center gap-4'>
-        <Button
-          onClick={sendRequest}
-        >
-          Call API
-        </Button>
-        <Button
-          variant='secondary'
-          asChild
-        >
-          <a target='_blank' href="https://bhvr.dev">
-          Docs
-          </a>
-        </Button>
-      </div>
-        {data && (
-          <pre className="bg-gray-100 p-4 rounded-md">
-            <code>
-            Message: {data.message} <br />
-            Success: {data.success.toString()}
-            </code>
-          </pre>
-        )}
+    <div className="flex min-h-screen bg-background">
+      {/* Sidebar */}
+      <Sidebar activeTab={getActiveTab()} onTabChange={handleTabChange} />
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <Header />
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-auto">
+          <div className="p-8">
+            <Routes>
+              <Route path="/barang" element={<BarangListPage />} />
+              <Route path="/barang/tambah" element={<BarangFormPage />} />
+              <Route path="/barang/edit/:id" element={<BarangFormPage />} />
+              <Route path="/satuan" element={<SatuanList />} />
+              <Route path="/kategori" element={<KategoriList />} />
+              <Route path="/" element={<Navigate to="/barang" replace />} />
+            </Routes>
+          </div>
+        </div>
+      </main>
+
+      {/* Toast Notifications */}
+      <Toaster position="top-right" />
     </div>
-  )
+  );
 }
 
-export default App
+function BarangListPage() {
+  const navigate = useNavigate();
+
+  const handleCreateBarang = () => {
+    navigate('/barang/tambah');
+  };
+
+  const handleEditBarang = (id: number) => {
+    navigate(`/barang/edit/${id}`);
+  };
+
+  return <BarangList onEdit={handleEditBarang} onCreate={handleCreateBarang} />;
+}
+
+function BarangFormPage() {
+  const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
+
+  const barangId = params.id ? parseInt(params.id) : undefined;
+
+  const handleBackToList = () => {
+    navigate('/barang');
+  };
+
+  return <BarangForm barangId={barangId} onBack={handleBackToList} />;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Layout />
+    </BrowserRouter>
+  );
+}
+
+export default App;
